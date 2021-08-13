@@ -1,0 +1,23 @@
+# /etc/systemd/system/myAPI.service
+
+
+[Unit]
+Description=myAPI
+After=multi-user.target
+Conflicts=getty@tty1.service
+
+[Service]
+Type=simple
+#User=node
+ExecStart=/usr/bin/python3 /home/lolek/projects/myAPI/main.py
+StandardInput=tty-force
+#StandardOutput=syslog
+StandardError=syslog
+#User=lolek
+#Group=lolek
+#Restart=always
+#TimeoutStartSec=10
+#RestartSec=350
+
+[Install]
+WantedBy=multi-user.target

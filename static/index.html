@@ -1,0 +1,290 @@
+﻿<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="utf-8" />
+    <title></title>
+    <style>
+        .bcolor {
+            background-color: grey;
+        }
+    </style>
+    <script src="go.js"></script>
+    <script type="text/javascript">
+        var nodeDataArray = [];
+        var linkDataArray = [];
+        var $ = go.GraphObject.make;
+        var lastElement;
+
+        function init() {
+            myDiagram = $(go.Diagram, "myDiagramDiv", { initialContentAlignment: go.Spot.Center });
+
+            // NODES
+            nodeDataArray = readFile();
+            lastElement = nodeDataArray[nodeDataArray.length - 1];
+
+            // LINKS
+            linkDataArray = [];
+            generateLinks();
+            //console.log(nodeDataArray);
+            //console.log(linkDataArray);
+
+            // MODEL
+            myDiagram.model = $(go.GraphLinksModel,
+                {
+                    nodeKeyProperty: "Name",
+                    nodeDataArray: nodeDataArray,
+                    linkDataArray: linkDataArray
+                });
+
+            // DEFINITIONS
+            myDiagram.nodeTemplate =
+                $(go.Node, "Auto", { locationSpot: go.Spot.Center, desiredSize: new go.Size(200, 150) },
+                    new go.Binding("position", "Pos", go.Point.parse).makeTwoWay(go.Point.stringify),
+                    $(go.Shape, "RoundedRectangle", { fill: "orange", stroke: "black", strokeWidth: 1 },
+                        new go.Binding("fill", "", function (r) {
+                            if (r.Running && r.ID != 0) {
+                                return "green";
+                            } else {
+                                if (r.ID == 0) {
+                                    return "lightblue";
+                                } else {
+                                    return "orange";
+                                }
+                            }
+                        }),
+                        new go.Binding("stroke", "", function (r) {
+                            if (r.Running && r.ID == 0) {
+                                return "green";
+                            } else {
+                                return "black";
+                            }
+                        }),
+                        new go.Binding("strokeWidth", "", function (r) {
+                            if (r.Running && r.ID == 0) {
+                                return 5;
+                            } else {
+                                return 1;
+                            }
+                        })
+                    ),
+                    $(go.Panel, "Vertical",
+                        { margin: 3 },
+                        $(go.TextBlock, "text", "stroke", { margin: 10 },
+                            new go.Binding("text", "info", function (v) { return "ID: " + v.ID + "\nName: " + v.Name + "\nPort: " + v.Port + "\nPid: " + v.Pid + "\nRequired: " + v.Required; }),
+                            // new go.Binding("stroke", "Running", function(v){return v ? "white" : "black";})
+                            new go.Binding("stroke", "", function (v) {
+                                if (v.ID != 0) {
+                                    return v.Running ? "white" : "black";
+                                } else {
+                                    return v.Running ? "green" : "black";
+                                }
+                            })
+                        ),
+                        // TextBlock
+                        $(go.Panel, "Auto",
+                            $(go.Shape, "RoundedRectangle", { desiredSize: new go.Size(190, 40) }),
+                            $(go.TextBlock, "show"),
+                            $(go.TextBlock,
+                                new go.Binding("text", "info", function (v) {
+                                    var lines = "", i;
+                                    for (i = 0; i < v.LastCommands.length; i++) {
+                                        if (i >= v.LastCommands.length - 3) {
+                                            lines += v.LastCommands[i] + "\n";
+                                        }
+                                    }
+                                    return lines;
+                                }),
+                                {
+                                    text: "foo",
+                                    width: "180",
+                                    height: "40",
+                                    font: "7pt calibri",
+                                    background: "black",
+                                    stroke: "white",
+                                    isMultiline: true,
+                                    overflow: go.TextBlock.OverflowEllipsis
+                                })
+                        ),
+                        // Buttons panel
+                        $(go.Panel, "Horizontal",
+                            // Button Info
+                            $("Button",
+                                {
+                                    margin: 2,
+                                    click: nodeClicked
+                                },
+                                $(go.TextBlock, "Info")
+                            ),
+                            // Button Save
+                            $("Button",
+                                {
+                                    margin: 2,
+                                    click: nodeClicked
+                                },
+                                $(go.TextBlock, "Save")
+                            ),
+                            // Button Clear
+                            $("Button",
+                                {
+                                    margin: 2,
+                                    //click: nodeClearClicked
+                                },
+                                $(go.TextBlock, "Clear"),
+                                {
+                                    click: function (e, obj) {
+                                        //text: "";
+                                        var nodeNewData = obj.part.data;
+                                        console.log("OldData:");
+                                        console.log(nodeNewData);
+                                        nodeNewData.LastCommands = [];
+
+                                        myDiagram.model.commit(function (m) {
+                                            var modData = m.nodeDataArray;
+                                            console.log("NewData:");
+                                            console.log(nodeNewData);
+                                            console.log("Nodes");
+                                            console.log(modData);
+                                            for (var i = 0; i < m.nodeDataArray.length; i++) {
+                                                var node = m.nodeDataArray[i];
+                                                if (node.ID == nodeNewData.ID) {
+                                                    m.set(node, "info", nodeNewData);
+                                                }
+                                            }
+                                        }, "coloring");
+                                    }
+                                }
+                            ),
+                            $(go.TextBlock,
+                                new go.Binding("text", "clickCount",
+                                    function (c) { return "Clicked " + c + " times."; })
+                            )
+                        )
+                    ),
+
+                );
+            function nodeClicked(e, obj) {
+                var node = obj.part;
+                var data = node.data;
+                console.log("button clicked");
+                window.open('log.html', 'form-target', 'width=500, height=1000');
+            }
+
+            function nodeClearClicked(e, obj) {
+                var node = obj.part;
+                var data = node.data;
+                console.log("button Clear clicked");
+            }
+
+            myDiagram.linkTemplate =
+                $(go.Link,
+                    $(go.Shape, { strokeWidth: 3 },
+                        new go.Binding("stroke", "color")
+                    ),
+                    $(go.Shape, { toArrow: "Standard", stroke: null },
+                        new go.Binding("fill", "color")
+                    )
+                );
+            // change property of the node
+            // var dataObj = myDiagram.model.findNodeDataForKey("new");
+            // myDiagram.model.set(dataObj, "color", "green");
+            // file = myDiagram.model.toJson();
+        }
+        function generateLinks() {
+            linkDataArray = [];
+            for (var i = 0; i < nodeDataArray.length; i++) {
+                if (i <= (nodeDataArray.length - 1)) {
+                    var item;
+                    if ((i + 1) == nodeDataArray.length) {
+                        item = { from: "", to: "", color: "" };
+                        // item = { from: nodeDataArray[i]["Name"], to: nodeDataArray[i]["Name"], color: "black" };
+                    } else {
+                        item = { from: nodeDataArray[i]["Name"], to: nodeDataArray[i + 1]["Name"], color: "black" };
+                    }
+                    linkDataArray.push(item);
+                };
+            }
+        }
+        function load() {
+            //readFile();
+            myDiagram.model = go.Model.fromJson(file);
+        }
+        function save() {
+            file = myDiagram.model.toJson();
+            localStorage.setItem("test", file);
+        }
+        function reload() {
+            //nodeDataArray = [];
+            var fileData = readFile();
+            if (fileData.length == nodeDataArray.length) {
+                myDiagram.model.commit(function (m) {
+                    var modData = m.nodeDataArray;
+                    for (var i = 0; i < fileData.length; i++) {
+                        var node = m.nodeDataArray[i];
+                        m.set(node, "Running", fileData[i].Running);
+                        m.set(node, "", fileData[i].ID);
+                        m.set(node, "info", fileData[i]);
+                    }
+                }, "coloring");
+            } else {
+                nodeDataArray = [];
+                nodeDataArray = fileData;
+                generateLinks();
+                myDiagram.model = $(go.GraphLinksModel,
+                    {
+                        nodeKeyProperty: "Name",
+                        nodeDataArray: nodeDataArray,
+                        linkDataArray: linkDataArray
+                    });
+            }
+        }
+
+        function readFile() {
+            var xhr = new XMLHttpRequest();
+            var shouldBeAsync = false;
+            var method = "GET";
+            var jsonResp = null;
+            xhr.onload = function () {
+                if (xhr.readyState === xhr.DONE) {
+                    if (xhr.status === 200) {
+                    }
+                } else {
+                    document.getElementById("msg").innerHTML = "<p style='text-align:center'>No Connection...</p>";
+                    console.log("No connection");
+                }
+            };
+            // xhr.responseType = 'text';
+            xhr.open(method, "http://localhost:8000/apps/", shouldBeAsync);
+            xhr.onerror = function (e) {
+                alert("Error Status: " + e.target.status);
+            };
+            xhr.setRequestHeader("Access-Control-Allow-Credentials", "true");
+            xhr.setRequestHeader("Access-Control-Allow-Origin", "*");
+
+            try {
+                xhr.send(null);
+            } catch (e) {
+                //alert("No connection...");
+                document.getElementById("msg").innerHTML = "<p style='text-align:center'>No Connection...</p>";
+                //document.getElementById("myDiagramDiv").innerHTML = "";
+                console.log('catch', e);
+            }
+            var resp = xhr.responseText;
+            //console.log(resp);
+            var jsonResp = JSON.parse(resp);
+            return jsonResp;
+        }
+        function loop() {
+            setTimeout(function () { reload(); loop(); }, 1000);
+        }
+        loop();
+    </script>
+</head>
+<body onload="init()">
+    <h1 style="text-align: center;">PrimeTestEnv - Visualization</h1>
+    <div id="myDiagramDiv" style="width: 1500px; height: 700px; border: 1px solid black; margin: 0 auto; background-color: grey;"></div>
+    <div id="msg"></div>
+    <!-- <button onclick="load()">Load</button>
+    <button onclick="save()">Save</button>
+    <button onclick="reload()">Reload</button> -->
+</body>
+</html>
